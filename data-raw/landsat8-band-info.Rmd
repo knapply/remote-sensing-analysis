@@ -2,13 +2,13 @@
 title: "Landsat 8 Band Info"
 author: "Brendan Knapp"
 date: "May 6, 2018"
-output: html_document
+output: github_document
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 ```{r}
@@ -37,11 +37,17 @@ landsat8_bands <- target_url %>%
            as.numeric()
          ) %>% 
   mutate(band = band %>% 
-           str_remove("^.*?-\\s+") %>% 
+           str_remove("^.*?(-|–)\\s+") %>% 
            str_trim()
          ) %>% 
-  dplyr::select(band_number, everything())
+  select(band_number, everything())
 ```
+
+```{r}
+landsat8_bands %>% 
+  knitr::kable(format = "markdown")
+```
+
 
 ```{r}
 write_rds(landsat8_bands, "data/landsat8_bands.rds")
