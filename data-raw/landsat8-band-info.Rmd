@@ -1,0 +1,51 @@
+---
+title: "Landsat 8 Band Info"
+author: "Brendan Knapp"
+date: "May 6, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(rvest)
+```
+
+```{r}
+target_url <- "https://landsat.usgs.gov/what-are-best-spectral-bands-use-my-study"
+
+table_css <- "#node-3373 > div > div.field.field-name-body.field-type-text-with-summary.field-label-hidden > div > div > table:nth-child(5)"
+
+landsat8_bands <- target_url %>%
+  read_html() %>% 
+  html_nodes(table_css) %>% 
+  html_table() %>% 
+  flatten() %>% 
+  as_tibble() %>% 
+  rename_all(funs(str_to_lower(str_replace_all(., " ", "_")))) %>% 
+  separate(wavelength, c("min_wavelength", "max_wavelength"), 
+           sep = "-|–") %>% 
+  mutate_at(vars(min_wavelength, max_wavelength), 
+            funs(as.numeric(str_trim(.)))) %>% 
+  mutate(band_number = band %>% 
+           str_extract("\\d+") %>% 
+           as.numeric()
+         ) %>% 
+  mutate(band = band %>% 
+           str_remove("^.*?-\\s+") %>% 
+           str_trim()
+         ) %>% 
+  dplyr::select(band_number, everything())
+```
+
+```{r}
+write_rds(landsat8_bands, "data/landsat8_bands.rds")
+```
+
+
+
