@@ -1,0 +1,56 @@
+---
+title: "Sentinel 2 Band Info"
+author: "Brendan Knapp"
+date: "May 6, 2018"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(rvest)
+```
+
+```{r}
+target_url <- "https://en.wikipedia.org/wiki/Sentinel-2"
+table_css <- "#mw-content-text > div > table.wikitable"
+
+sentinel2_bands <- target_url %>%
+  read_html() %>% 
+  html_nodes(table_css) %>% 
+  html_table() %>%
+  as.data.frame() %>% 
+  as_tibble() %>% 
+  set_names(c("band", "central_wavelength",
+              "resolution", "bandwidth")) %>% 
+  mutate(band_number = band %>% 
+           str_extract("\\d+A?") %>% 
+           str_pad(2, pad = "0")
+         ) %>% 
+  mutate(band = band %>% 
+           str_remove("^.*?(-|–)\\s+") %>% 
+           str_trim()
+         ) %>% 
+  mutate(band_number = if_else(band == "Narrow NIR", "08A", band_number)) %>% 
+  mutate(platform = "sentinel2") %>% 
+  select(band_number, everything())
+```
+
+```{r}
+sentinel2_bands %>% 
+  knitr::kable(format = "markdown")
+```
+
+```{r}
+write_rds(sentinel2_bands, "data/sentinel2_bands.rds")
+```
+
+```{r}
+devtools::session_info()
+```
+

@@ -1,0 +1,157 @@
+---
+title: "Homs Chemical Storage Facility - 2018-04-14 Missile Strikes"
+author: "Brendan Knapp"
+date: "May 6, 2018"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.align = "middle",
+                      fig.height = 10, fig.width = 10)
+
+image_dir <- "C:/Users/Windows/Dropbox/imagery/homs"
+```
+
+```{r}
+library(raster)
+library(rasterVis)
+library(RStoolbox)
+library(tidyverse)
+library(sf)
+library(units)
+
+source("R/utils.R")
+source("R/global.R")
+```
+
+```{r}
+shared_crs <- "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0"
+
+homs_2 <- "data/vector-AOIs/homs-2.kml" %>% 
+  read_sf() %>% 
+  st_zm() %>% 
+  st_transform(shared_crs)
+
+homs_2_buffered <- homs_2 %>% 
+  st_buffer(set_units(0.25, km))
+
+homs_bunker_entrance <- "data/vector-AOIs/homs-bunker-entrance.kml" %>%
+  read_sf() %>% 
+  st_zm() %>% 
+  st_transform(shared_crs)
+```
+
+```{r}
+image_dir %>% 
+  list.files(full.names = TRUE, recursive = TRUE) %>% 
+  str_subset("\\.zip$") %>% 
+  walk(unzip, exdir = image_dir)
+```
+
+```{r}
+sentinel2_files <- image_dir %>%
+  list.files(full.names = TRUE, recursive = TRUE) %>% 
+  str_subset("\\.jp2$")
+
+sentinel2_dates <- sentinel2_files %>% 
+  str_extract("\\d{8}") %>% 
+  unique()
+```
+
+```{r}
+prep_bricks <- function(date, sentinel2_files, sf_poly){
+  sentinel2_files %>% 
+    str_subset(date) %>% 
+    map(raster) %>% 
+    map(sf_crop, sf_poly) %>% 
+    match_bands() %>% 
+    brick() %>% 
+    `names<-`(str_extract(names(.), "\\d{8}T\\d{6}\\_B\\d+A?$"))
+}
+
+bricks <- sentinel2_dates %>% 
+  map(prep_bricks, sentinel2_files, homs_2_buffered)
+
+indices <- bricks %>% 
+  map(spectralIndices,
+      blue = 2, green = 3, red = 4, nir = 8,
+      swir2 = 11, swir3 = 12)
+
+brick_2018_04_06 <- bricks[[2]]
+brick_2018_04_11 <- bricks[[1]]
+brick_2018_04_16 <- bricks[[3]]
+
+indices_2018_04_06 <- indices[[2]]
+indices_2018_04_11 <- indices[[1]]
+indices_2018_04_16 <- indices[[3]]
+```
+
+```{r}
+tidy_rasters <- list(brick_2018_04_06, brick_2018_04_11,
+                     brick_2018_04_16) %>% 
+  map_df(bulk_fortify)
+  
+tidy_rasters %>% 
+  filter(resolution <= 20) %>% 
+  ggplot(aes(x, y, fill = val)) +
+  geom_raster(show.legend = FALSE) +
+  scale_fill_distiller(palette = "Spectral") +
+  theme_minimal() +
+  theme(text = element_text(family = "serif"),
+        axis.text = element_blank(),
+        panel.grid = element_blank()) +
+  labs(x = NULL, y = NULL,
+       title = "Him Shanshar Bunker",
+       subtitle = "near Homs, Syria",
+       caption = "Sentinel-2 imagery from European Space Agency (ESA)\n
+                  courtesy of Planet") +
+  facet_grid(band ~ date_name)
+```
+
+```{r}
+tidy_indices <- list(indices_2018_04_06, indices_2018_04_11,
+                     indices_2018_04_16) %>% 
+  map2_df(.y = c("2018-04-06", "2018-04-11", "2018-04-16"),
+          ~ bulk_fortify(.x, indices = TRUE, date_name = .y))
+
+tidy_indices %>% 
+  filter(index == "NDVI") %>% 
+  ggplot(aes(x, y, fill = val)) +
+  geom_raster(show.legend = FALSE) +
+  scale_fill_distiller(palette = "Spectral") +
+  theme_minimal() +
+  theme(text = element_text(family = "serif"),
+        axis.text = element_blank(),
+        panel.grid = element_blank()) +
+  labs(x = NULL, y = NULL,
+       title = "NDVI",
+       subtitle = "Him Shanshar Bunker",
+       caption = "Sentinel-2 imagery from European Space Agency (ESA)\n
+                  courtesy of Planet") +
+  facet_wrap(~ date_name)
+
+tidy_indices %>% 
+  filter(index == "NDWI") %>% 
+  ggplot(aes(x, y, fill = val)) +
+  geom_raster(show.legend = FALSE) +
+  scale_fill_distiller(palette = "Spectral") +
+  theme_minimal() +
+  theme(text = element_text(family = "serif"),
+        axis.text = element_blank(),
+        panel.grid = element_blank()) +
+  labs(x = NULL, y = NULL,
+       title = "NDWI",
+       subtitle = "Him Shanshar Bunker",
+       caption = "Sentinel-2 imagery from European Space Agency (ESA)\n
+                  courtesy of Planet") +
+  facet_wrap(~ date_name)
+```
+
+
+```{r}
+devtools::session_info()
+```
+

@@ -21,6 +21,11 @@ target_url <- "https://landsat.usgs.gov/what-are-best-spectral-bands-use-my-stud
 
 table_css <- "#node-3373 > div > div.field.field-name-body.field-type-text-with-summary.field-label-hidden > div > div > table:nth-child(5)"
 
+bands_15m_res <- c(8)
+bands_30m_res <- c(1:6, 7, 9)
+bands_100m_res <- c(10, 11)
+
+
 landsat8_bands <- target_url %>%
   read_html() %>% 
   html_nodes(table_css) %>% 
@@ -30,16 +35,24 @@ landsat8_bands <- target_url %>%
   rename_all(funs(str_to_lower(str_replace_all(., " ", "_")))) %>% 
   separate(wavelength, c("min_wavelength", "max_wavelength"), 
            sep = "-|–") %>% 
-  mutate_at(vars(min_wavelength, max_wavelength), 
+  mutate_at(vars(min_wavelength, max_wavelength), # in nm
             funs(as.numeric(str_trim(.)))) %>% 
+  rowwise() %>% 
+  mutate(central_wavelength = mean(min_wavelength, max_wavelength)) %>% 
+  ungroup() %>% 
   mutate(band_number = band %>% 
-           str_extract("\\d+") %>% 
-           as.numeric()
+           str_extract("\\d+")
          ) %>% 
   mutate(band = band %>% 
            str_remove("^.*?(-|–)\\s+") %>% 
            str_trim()
          ) %>% 
+  mutate(resolution = case_when(
+    band_number %in% bands_15m_res ~ 15,
+    band_number %in% bands_30m_res ~ 30,
+    band_number %in% bands_100m_res ~ 100
+    )) %>% 
+  mutate(platform = "landsat8") %>% 
   select(band_number, everything())
 ```
 
